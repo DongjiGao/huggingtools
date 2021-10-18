@@ -15,3 +15,8 @@ def speech_to_input(batch):
 
     return batch
 
+def get_duration(batch):
+    batch["duration"] = len(batch["speech"])/batch["sampling_rate"]
+    return batch
+
+
