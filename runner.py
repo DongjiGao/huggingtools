@@ -22,6 +22,7 @@ from utils import (
     split_dataset,
     DataCollatorCTCWithPadding,
 )
+from trainer import NCTrainer
 
 
 class SuperRunnerConfig():

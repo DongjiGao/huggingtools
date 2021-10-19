@@ -1,10 +1,10 @@
 # 2021 Dongji Gao
 
-import sys
 import datasets
 import mapping
 import numpy as np
 import random
+import sys
 import torchaudio
 from mapping import speech_to_input
 
@@ -29,26 +29,23 @@ def check_data(dataset, dis_number=2, play_audio=False):
 
     # convert dict to Dataset
     sub_dataset = datasets.Dataset.from_dict(dataset[pick_list])
-    for index in range(dis_number):
-        for column in sub_dataset.column_names:
-            print("{}: {}".format(column, sub_dataset[column][index]))
-        print("")
-
     if play_audio:
         from IPython.display import display
         import IPython.display as ipd
 
-        if "speech" in dataset:
-            sampling_rate = SAMPLING_RATE if "sampling_rate" not in dataset else dataset[
-                "sampling_rate"]
-            assert sampling_rate == SAMPLING_RATE
-        else:
+        if "speech" not in sub_dataset[0]:
             sub_dataset = sub_dataset.map(speech_to_input)
 
-        for index in range(dis_number):
-            print(sub_dataset[index]["text"])
-            display(ipd.Audio(data=np.asarray(sub_dataset[index]["speech"]),
-                              autoplay=False, rate=SAMPLING_RATE))
+    for index in range(dis_number):
+        for column in sub_dataset.column_names:
+            if column == "speech":
+                print("{}: {} (first 10 values)".format(column, sub_dataset[column][index][:10]))
+            else:
+                print("{}: {}".format(column, sub_dataset[column][index]))
+        print("")
+
+        display(ipd.Audio(data=np.asarray(sub_dataset[index]["speech"]),
+                          autoplay=False, rate=SAMPLING_RATE))
 
 
 def get_subset(dataset, duration=3600):
@@ -78,4 +75,3 @@ def get_subset(dataset, duration=3600):
     sub_dataset = datasets.Dataset.from_dict(dataset[pick_list])
 
     return sub_dataset
-

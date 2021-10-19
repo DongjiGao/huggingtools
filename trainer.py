@@ -7,7 +7,7 @@ from transformers import Trainer
 class NCTrainer(Trainer):
     # notice this trainer should only work for Wav2Vec2ForCTC model
     def compute_loss(self, model, inputs, return_outputs=False):
-        scale = 0.3
+        scale = 1.0
         outputs = model(**inputs)
         ctc_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
@@ -19,8 +19,7 @@ class NCTrainer(Trainer):
         norm_matrix = torch.matmul(weights_norm, weights_norm.T)
         cos_matrix = torch.div(torch.matmul(weights, weights.T), norm_matrix)
         regularization = torch.sum(cos_matrix)
-        print(regularization)
 
-        loss = ctc_loss * (1 - scale) + scale * regularization
+        loss = ctc_loss + scale * regularization
 
         return (loss, outputs) if return_outputs else loss
