@@ -3,7 +3,9 @@
 import datasets
 import json
 import lhotse
+import numpy as np
 import os
+from datasets import load_dataset, load_metric
 from mapping import get_chars, text_to_phones, tokenize_data
 from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, \
     Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
@@ -11,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 from utils import lhotse_to_huggingface, get_dataset, split_dataset, DataCollatorCTCWithPadding
 
 
-class super_runner_config():
+class SuperRunnerConfig():
     def __init__(self,
                  task,
                  model,
@@ -41,16 +43,17 @@ class super_runner_config():
 
 
 class SuperRunner():
-    def __init__(self, super_runner_config,  training_args):
+    def __init__(self, super_runner_config, training_args):
         self.task = super_runner_config.task
         self.model = super_runner_config.model
-        self.training_set_name = super_runner_config.training_set_name
-        self.eval_set_name = super_runner_config.eval_set_name
+        self.unit = super_runner_config.unit
+        self.training_set_name = super_runner_config.training_set_name[0]
+        self.eval_set_name = super_runner_config.eval_set_name[0]
+
         self.output_dir = super_runner_config.output_dir
 
-
-        assert unit in ["char", "phone"]
-        if unit is "phone":
+        assert self.unit in ["char", "phone"]
+        if self.unit == "phone":
             assert os.path.exits(super_runner_config.lexicon)
             self.lexicon = lexicon
 
@@ -59,31 +62,35 @@ class SuperRunner():
         self.data = super_runner_config.data
         self.dataset = super_runner_config.dataset
         self.is_kaldi_format = True
-        if not os.path.exits(self.data):
+        if not os.path.exists(self.data):
             self.is_kaldi_format = False
             assert os.path.exists(self.dataset)
 
         assert self.data or self.dataset
         self.sampling_rate = super_runner_config.sampling_rate
         self.trainer = super_runner_config.trainer
+        self.training_args = training_args
 
     # TODO: whether move this function to utils?
     def process_data(self, data, dataset, is_kaldi_format):
         hf_dataset = get_dataset(data, dataset, is_kaldi_format)
         if self.eval_set_name not in hf_dataset:
             hf_dataset = split_dataset(hf_dataset, self.eval_set_name, num_eval=500)
-        hf_dataset.save_to_disk(dataset)
+            hf_dataset.save_to_disk(dataset)
 
-        if unit == "char":
+        if self.unit == "char":
             if not self.vocab:
-                vocabs = hf_dataset.map(get_chars, batched=True, batch_size=-1)
-                vocab_list = vocabs["train"]["vocab"][0]
+                vocabs = hf_dataset.map(get_chars, batched=True, batch_size=-1,
+                                        remove_columns=hf_dataset.column_names["train"])
+                vocab_list = list(
+                    set(vocabs["train"]["vocab"][0]) | set(vocabs["eval"]["vocab"][0]))
                 vocab_dict = {v: k + 1 for k, v in enumerate(vocab_list)}
 
                 vocab_dict["|"] = vocab_dict[" "]
                 del vocab_dict[" "]
                 vocab_dict["<eps>"] = 0
                 vocab_dict["<UNK>"] = len(vocab_dict)
+
 
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
@@ -113,9 +120,9 @@ class SuperRunner():
         return hf_dataset
 
     def run(self):
-        hf_dataset = process_data(self.data, self.dataset, self.is_kaldi_format)
+        hf_dataset = self.process_data(self.data, self.dataset, self.is_kaldi_format)
 
-        is_split_into_word = True if unit == "char" else False
+        is_split_into_word = True if self.unit == "char" else False
         tokenizer = Wav2Vec2CTCTokenizer("./vocab.json",
                                          unk_token="<UNK>",
                                          pad_token="<eps>",
@@ -128,29 +135,44 @@ class SuperRunner():
                                                      return_attention_mask=False)
         processor = Wav2Vec2Processor(feature_extractor=feature_extractor,
                                       tokenizer=tokenizer)
-        hf_tokened_dataset = hg.dataset.map(tokenize_data,
-                                            processor=processor,
-                                            unit=self.unit,
-                                            sampling_rate=self.sampling_rate,
-                                            remove_columns=hf_dataset.column_names["train"])
+        tk_dict = {"processor": processor, "unit": self.unit, "sampling_rate": self.sampling_rate}
+        hf_tokened_dataset = hf_dataset.map(tokenize_data,
+                                            fn_kwargs=tk_dict,
+                                            )
         # padding
-        data_collar = DataCollatorCTCWithPadding(processor=processor, padding=True)
+        data_collator = DataCollatorCTCWithPadding(processor=processor, padding=True)
 
         model = Wav2Vec2ForCTC.from_pretrained(
-            model,
-            gradient_checkpoint=True,
+            self.model,
+            gradient_checkpointing=True,
             ctc_loss_reduction="mean",
             pad_token_id=processor.tokenizer.pad_token_id,
-            vocab_size=len(processor.tokenizer.get_vocab)
+            vocab_size=len(processor.tokenizer.get_vocab())
         )
-        SpeechTrainer = NCTrainer if self.trainer == "nc" else Trainer
 
+        # metric
+        wer_metric = load_metric("wer")
+
+        def compute_metrics(pred):
+            pred_logits = pred.predictions
+            pred_ids = np.argmax(pred_logits, axis=-1)
+            pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
+            pred_str = processor.batch_decode(pred_ids)
+            label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
+            print("hyp: {}".format(pred_str[0]))
+            print("ref: {}".format(label_str[0]))
+            wer = wer_metric.compute(predictions=pred_str, references=label_str)
+
+            return {"wer": wer}
+
+        # training
+        SpeechTrainer = NCTrainer if self.trainer == "nc" else Trainer
         trainer = SpeechTrainer(
             model=model,
-            data_collar=data_collar,
-            args=training_args,
-            compute_metrics=compute_metric,
-            training_dataset=hf_tokened_dataset[self.training_set_name],
+            data_collator=data_collator,
+            args=self.training_args,
+            compute_metrics=compute_metrics,
+            train_dataset=hf_tokened_dataset[self.training_set_name],
             eval_dataset=hf_tokened_dataset[self.eval_set_name],
             tokenizer=processor.feature_extractor
         )

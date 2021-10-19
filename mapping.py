@@ -49,12 +49,12 @@ def text_to_phones(batch, **kwargs):
     return batch
 
 
-def tokenize_data(batch, **kwargs):
-    sampling_rate = kwargs["sampling_rate"]
-    processor = kwargs["processor"]
-    unit = kwargs["unit"]
+def tokenize_data(batch, **fn_kwargs):
+    sampling_rate = fn_kwargs["sampling_rate"]
+    processor = fn_kwargs["processor"]
+    unit = fn_kwargs["unit"]
 
-    input_values = keyprocessor(batch["speech"], sampling_rate=sampling_rate).input_values
+    input_values = processor(batch["speech"], sampling_rate=sampling_rate).input_values
     batch["input_values"] = input_values[0]
 
     with processor.as_target_processor():
@@ -63,4 +63,6 @@ def tokenize_data(batch, **kwargs):
         else:
             raw_ids = processor(batch["phones"]).input_ids
             labels = [x[0] for x in raw_ids]
+        batch["labels"] = labels
+
     return batch

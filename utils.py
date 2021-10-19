@@ -2,8 +2,13 @@
 
 import lhotse
 import random
+import torch
+import numpy as np
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datasets import Dataset, DatasetDict, load_from_disk, load_metric
+from transformers import Wav2Vec2Processor
+from typing import Any, Dict, List, Optional, Union
 
 
 def lhotse_to_huggingface(cuts, sampling_rate=16e3):
@@ -67,6 +72,7 @@ def split_dataset(dataset, eval_name, num_eval=100):
 
     return hf_dataset
 
+
 @dataclass
 class DataCollatorCTCWithPadding:
     processor: Wav2Vec2Processor
@@ -77,7 +83,8 @@ class DataCollatorCTCWithPadding:
     pad_to_multiple_of_labels: Optional[int] = None
 
     def __call__(self,
-                 features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
+                 features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[
+        str, torch.Tensor]:
         input_features = [{"input_values": feature["input_values"]} for feature in features]
         label_features = [{"input_ids": feature["labels"]} for feature in features]
 
@@ -102,17 +109,5 @@ class DataCollatorCTCWithPadding:
         batch["labels"] = labels
         return batch
 
-def compute_metrics(pred):
-    wer_matrix = load_metric("wer")
-    pred_logits = pred.predictions
-    pred_ids = np.argmax(pred_logits, axis=-1)
-    pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
-    pred_str = processor.batch_decode(pred_ids)
-    label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
-    print("hyp: {}".format(pred_str[0]))
-    print("ref: {}".format(label_str[0]))
-    wer = wer_metric.compute(predictions=pred_str, references=label_str)
-
-    return {"wer": wer}
 
 
