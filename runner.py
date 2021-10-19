@@ -7,10 +7,21 @@ import numpy as np
 import os
 from datasets import load_dataset, load_metric
 from mapping import get_chars, text_to_phones, tokenize_data
-from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, \
-    Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
+from transformers import (
+    Wav2Vec2CTCTokenizer,
+    Wav2Vec2FeatureExtractor,
+    Wav2Vec2Processor,
+    Wav2Vec2ForCTC,
+    TrainingArguments,
+    Trainer,
+)
 from typing import Any, Dict, List, Optional, Union
-from utils import lhotse_to_huggingface, get_dataset, split_dataset, DataCollatorCTCWithPadding
+from utils import (
+    lhotse_to_huggingface,
+    get_dataset_from_disk,
+    split_dataset,
+    DataCollatorCTCWithPadding,
+)
 
 
 class SuperRunnerConfig():
@@ -73,8 +84,9 @@ class SuperRunner():
 
     # TODO: whether move this function to utils?
     def process_data(self, data, dataset, is_kaldi_format):
-        hf_dataset = get_dataset(data, dataset, is_kaldi_format)
+        hf_dataset = get_dataset_from_disk(data, dataset, is_kaldi_format)
         if self.eval_set_name not in hf_dataset:
+            print(f"eval set {self.eval_set_name} not found, spliting dataset")
             hf_dataset = split_dataset(hf_dataset, self.eval_set_name, num_eval=500)
             hf_dataset.save_to_disk(dataset)
 

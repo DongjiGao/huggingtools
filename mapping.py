@@ -2,13 +2,12 @@
 
 import librosa
 import numpy as np
-import re
-import torchaudio
 
 SAMPLING_RATE = 16e3
 
 
 def speech_to_input(batch):
+    import torchaudio
     raw_wav, sampling_rate = torchaudio.load(batch["file"])
     if sampling_rate != SAMPLING_RATE:
         raw_wav = librosa.resample(np.asarray(raw_wav), sampling_rate, SAMPLING_RATE)
@@ -24,6 +23,7 @@ def get_duration(batch):
 
 
 def normalize_text(batch):
+    import re
     chars_to_ignore_regex = '[\,\?\.\!\-\;\:\"]'
     batch["text"] = re.sub(chars_to_ignore_regex, '', batch["text"]).lower()
     return batch
