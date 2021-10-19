@@ -159,6 +159,7 @@ class SuperRunner():
             pad_token_id=processor.tokenizer.pad_token_id,
             vocab_size=len(processor.tokenizer.get_vocab())
         )
+        model.freeze_feature_extractor()
 
         # metric
         wer_metric = load_metric("wer")

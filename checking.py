@@ -48,7 +48,7 @@ def check_data(dataset, dis_number=2, play_audio=False):
         for index in range(dis_number):
             print(sub_dataset[index]["text"])
             display(ipd.Audio(data=np.asarray(sub_dataset[index]["speech"]),
-                              autoplay=True, rate=SAMPLING_RATE))
+                              autoplay=False, rate=SAMPLING_RATE))
 
 
 def get_subset(dataset, duration=3600):
