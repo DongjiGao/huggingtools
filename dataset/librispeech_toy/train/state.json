@@ -4,12 +4,12 @@
       "filename": "dataset.arrow"
     }
   ],
-  "_fingerprint": "180cb905192b0cb0",
+  "_fingerprint": "334d753479f77b1a",
   "_format_columns": null,
   "_format_kwargs": {},
   "_format_type": null,
   "_indexes": {},
   "_indices_data_files": null,
   "_output_all_columns": false,
-  "_split": null
+  "_split": "train.100[:500]"
 }

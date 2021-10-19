@@ -33,7 +33,7 @@ def lhotse_to_huggingface(cuts, sampling_rate=16e3):
     return hf_dataset
 
 
-def get_dataset(data, dataset, is_kaldi_format, sampling_rate=16e3):
+def get_dataset_from_disk(data, dataset, is_kaldi_format, sampling_rate=16e3):
     if not is_kaldi_format:
         print(f"loading {dataset} form disk")
         hf_dataset = load_from_disk(dataset)

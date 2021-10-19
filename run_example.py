@@ -8,7 +8,7 @@ super_runner_config = SuperRunnerConfig(
     model="facebook/wav2vec2-base",
     unit="char",
     output_dir="log",
-    eval_set_name="train",
+    eval_set_name="eval",
     dataset="dataset/librispeech_toy"
 )
 
@@ -24,7 +24,7 @@ training_args = TrainingArguments(
     eval_steps=50,
     logging_steps=50,
     learning_rate=5e-4,
-    weight_decay=0.005,
+    weight_decay=0.02,
     warmup_steps=500,
     save_total_limit=2,
 )

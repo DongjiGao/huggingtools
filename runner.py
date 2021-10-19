@@ -91,10 +91,8 @@ class SuperRunner():
                 vocab_dict["<eps>"] = 0
                 vocab_dict["<UNK>"] = len(vocab_dict)
 
-
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
-
         else:
             if not self.vocab:
                 phone_list = list()
