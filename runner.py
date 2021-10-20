@@ -7,6 +7,7 @@ import numpy as np
 import os
 from datasets import load_dataset, load_metric
 from mapping import get_chars, text_to_phones, tokenize_data
+from trainer import NCTrainer
 from transformers import (
     Wav2Vec2CTCTokenizer,
     Wav2Vec2FeatureExtractor,
@@ -52,7 +53,7 @@ class SuperRunnerConfig():
         self.lexicon = lexicon
         self.trainer = trainer
         self.sampling_rate = sampling_rate
-        self.scale=scale
+        self.scale = scale
 
 
 class SuperRunner():
