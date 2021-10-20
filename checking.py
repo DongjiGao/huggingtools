@@ -46,32 +46,3 @@ def check_data(dataset, dis_number=2, play_audio=False):
 
         display(ipd.Audio(data=np.asarray(sub_dataset[index]["speech"]),
                           autoplay=False, rate=SAMPLING_RATE))
-
-
-def get_subset_by_duration(dataset, duration=3600):
-    # be careful about duration
-    total_duration = 0
-    dataset_length = len(dataset)
-    pick_list = list()
-
-    while total_duration <= duration:
-        pick = random.randint(0, dataset_length - 1)
-        while pick in pick_list:
-            pick = random.randint(0, dataset_length - 1)
-        pick_list.append(pick)
-        batch = dataset[pick]
-        if "duration" in batch:
-            total_duration += batch["duration"]
-        else:
-            if "speech" in batch and "sampling_rate" in batch:
-                cur_duration = len(batch["speech"]) / batch["sampling_rate"]
-            else:
-                raw_wav, sampling_rate = torchaudio.load(batch["file"])
-                raw_wav = raw_wav[0]
-                cur_duration = len(raw_wav) / sampling_rate
-
-            total_duration += cur_duration
-
-    sub_dataset = datasets.Dataset.from_dict(dataset[pick_list])
-
-    return sub_dataset
