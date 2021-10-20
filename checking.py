@@ -48,7 +48,7 @@ def check_data(dataset, dis_number=2, play_audio=False):
                           autoplay=False, rate=SAMPLING_RATE))
 
 
-def get_subset(dataset, duration=3600):
+def get_subset_by_duration(dataset, duration=3600):
     # be careful about duration
     total_duration = 0
     dataset_length = len(dataset)

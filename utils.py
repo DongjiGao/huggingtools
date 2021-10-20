@@ -49,7 +49,7 @@ def get_dataset_from_disk(data, dataset, is_kaldi_format, sampling_rate=16e3):
 
 
 # TODO: split by duration?
-def split_dataset(dataset, eval_name, num_eval=100):
+def split_dataset_randomly(dataset, eval_name, num_eval=100):
     hf_dataset = DatasetDict()
     dataset_length = len(dataset)
     assert num_eval <= dataset_length
@@ -72,6 +72,33 @@ def split_dataset(dataset, eval_name, num_eval=100):
 
     return hf_dataset
 
+def get_subset_by_duration(dataset, duration=3600):
+    # be careful about duration
+    total_duration = 0
+    dataset_length = len(dataset)
+    pick_list = list()
+
+    while total_duration <= duration:
+        pick = random.randint(0, dataset_length - 1)
+        while pick in pick_list:
+            pick = random.randint(0, dataset_length - 1)
+        pick_list.append(pick)
+        batch = dataset[pick]
+        if "duration" in batch:
+            total_duration += batch["duration"]
+        else:
+            if "speech" in batch and "sampling_rate" in batch:
+                cur_duration = len(batch["speech"]) / batch["sampling_rate"]
+            else:
+                raw_wav, sampling_rate = torchaudio.load(batch["file"])
+                raw_wav = raw_wav[0]
+                cur_duration = len(raw_wav) / sampling_rate
+
+            total_duration += cur_duration
+
+    sub_dataset = datasets.Dataset.from_dict(dataset[pick_list])
+
+    return sub_dataset
 
 @dataclass
 class DataCollatorCTCWithPadding:

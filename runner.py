@@ -19,10 +19,9 @@ from typing import Any, Dict, List, Optional, Union
 from utils import (
     lhotse_to_huggingface,
     get_dataset_from_disk,
-    split_dataset,
+    split_dataset_randomly,
     DataCollatorCTCWithPadding,
 )
-from trainer import NCTrainer
 
 
 class SuperRunnerConfig():
@@ -38,7 +37,8 @@ class SuperRunnerConfig():
                  dataset="",
                  lexicon="",
                  trainer="trainer",
-                 sampling_rate=16e3
+                 sampling_rate=16e3,
+                 scale=0.0,
                  ):
         self.task = task
         self.model = model
@@ -52,6 +52,7 @@ class SuperRunnerConfig():
         self.lexicon = lexicon
         self.trainer = trainer
         self.sampling_rate = sampling_rate
+        self.scale=scale
 
 
 class SuperRunner():
@@ -80,6 +81,7 @@ class SuperRunner():
 
         assert self.data or self.dataset
         self.sampling_rate = super_runner_config.sampling_rate
+        self.scale = float(super_runner_config.scale)
         self.trainer = super_runner_config.trainer
         self.training_args = training_args
 
@@ -88,7 +90,7 @@ class SuperRunner():
         hf_dataset = get_dataset_from_disk(data, dataset, is_kaldi_format)
         if self.eval_set_name not in hf_dataset:
             print(f"eval set {self.eval_set_name} not found, spliting dataset")
-            hf_dataset = split_dataset(hf_dataset, self.eval_set_name, num_eval=500)
+            hf_dataset = split_dataset_randomly(hf_dataset, self.eval_set_name, num_eval=500)
             hf_dataset.save_to_disk(dataset)
 
         if self.unit == "char":
@@ -188,4 +190,7 @@ class SuperRunner():
             eval_dataset=hf_tokened_dataset[self.eval_set_name],
             tokenizer=processor.feature_extractor
         )
+        if self.trainer == "nc":
+            trainer.set_scale(self.scale)
+
         trainer.train()

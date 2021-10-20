@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
+import sys
 from transformers import TrainingArguments
 from runner import SuperRunner, SuperRunnerConfig
+
+scale=sys.argv[1]
 
 super_runner_config = SuperRunnerConfig(
     task="ASR",
@@ -9,7 +12,9 @@ super_runner_config = SuperRunnerConfig(
     unit="char",
     output_dir="log",
     eval_set_name="eval",
-    dataset="dataset/librispeech_toy"
+    dataset="dataset/librispeech_toy",
+    trainer="nc",
+    scale=scale,
 )
 
 training_args = TrainingArguments(
