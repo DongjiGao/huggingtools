@@ -59,7 +59,7 @@ def split_dataset(dataset, eval_name, num_eval=100):
 
     for _ in range(num_eval):
         pick = random.randint(0, dataset_length - 1)
-        while pick not in eval_indexes:
+        while pick in eval_indexes:
             pick = random.randint(0, dataset_length - 1)
         eval_indexes.append(pick)
 
