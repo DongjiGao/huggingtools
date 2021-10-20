@@ -7,7 +7,7 @@ from transformers import Trainer
 class NCTrainer(Trainer):
     # notice this trainer should only work for Wav2Vec2ForCTC model
     def compute_loss(self, model, inputs, return_outputs=False):
-        scale = 10.0
+        scale = self.scale
         outputs = model(**inputs)
         ctc_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
@@ -23,3 +23,6 @@ class NCTrainer(Trainer):
         loss = ctc_loss + scale * regularization
 
         return (loss, outputs) if return_outputs else loss
+
+    def set_scale(self, scale=0.0):
+        self.scale = scale
