@@ -6,7 +6,7 @@ import lhotse
 import numpy as np
 import os
 from datasets import load_dataset, load_metric
-from mapping import get_chars, text_to_phones, tokenize_data
+from mapping import get_chars, text_to_phones, tokenize_data, normalize_text
 from trainer import NCTrainer
 from transformers import (
     Wav2Vec2CTCTokenizer,
@@ -68,8 +68,8 @@ class SuperRunner():
 
         assert self.unit in ["char", "phone"]
         if self.unit == "phone":
-            assert os.path.exits(super_runner_config.lexicon)
-            self.lexicon = lexicon
+            assert os.path.exists(super_runner_config.lexicon)
+            self.lexicon = super_runner_config.lexicon
 
         self.vocab = super_runner_config.vocab
 
@@ -110,33 +110,39 @@ class SuperRunner():
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
         else:
-            if not self.vocab:
-                phone_list = list()
-                lexicon_dict = dict()
-                with open(self.lexicon, "r") as lex:
-                    for line in lex.readlines():
-                        line_list = lints.split()
-                        word = line_list[0]
-                        phones = line_list[1:]
-                        lexicon_dict[word] = phones
-                        phone_list += phones
+            hf_dataset = hf_dataset.map(normalize_text)
 
-                vocab_list = list(set(phones_list))
-                vocab_dict = {v: k + 1 for k, v in enumerate(vocab_list)}
-                vocab_dict["<eps>"] = 0
+            phone_list = list()
+            lexicon_dict = dict()
+            with open(self.lexicon, "r") as lex:
+                for line in lex.readlines():
+                    line_list = line.split()
+                    word = line_list[0]
+                    phones = line_list[1:]
+                    lexicon_dict[word] = phones
+                    phone_list += phones
+
+            vocab_list = list(set(phone_list))
+            vocab_dict = {v: k + 1 for k, v in enumerate(vocab_list)}
+            vocab_dict["<eps>"] = 0
+            vocab_dict["|"] = len(vocab_dict)
+            if "<UNK>" not in vocab_dict:
                 vocab_dict["<UNK>"] = len(vocab_dict)
 
+            if not self.vocab:
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
+
             if "phones" not in hf_dataset:
-                hf_dataset = hf_dataset.map(text_to_phones)
+                tp_dict = {"lexicon": lexicon_dict, "do_normalize": True}
+                hf_dataset = hf_dataset.map(text_to_phones, fn_kwargs=tp_dict)
 
         return hf_dataset
 
     def run(self):
         hf_dataset = self.process_data(self.data, self.dataset, self.is_kaldi_format)
 
-        is_split_into_word = True if self.unit == "char" else False
+        is_split_into_word = True if self.unit == "phone" else False
         tokenizer = Wav2Vec2CTCTokenizer("./vocab.json",
                                          unk_token="<UNK>",
                                          pad_token="<eps>",
@@ -194,4 +200,4 @@ class SuperRunner():
         if self.trainer == "nc":
             trainer.set_scale(self.scale)
 
-        trainer.train()
+        trainer.train(resume_from_checkpoint=False)

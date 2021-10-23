@@ -36,14 +36,14 @@ def get_chars(batch):
 
 
 def text_to_phones(batch, **kwargs):
+    lexicon_dict = kwargs["lexicon"]
     phones = list()
     text = batch["text"]
-    lexicon_dict = kwargs["lexicon"]
     for word in text.split():
         phone_list = ["<UNK>"] if word not in lexicon_dict else lexicon_dict[word]
         for phone in phone_list:
             phones.append(phone)
-            phones.append("|")
+        phones.append("|")
     batch["phones"] = phones[:-1]
 
     return batch
