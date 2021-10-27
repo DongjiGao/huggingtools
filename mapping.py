@@ -61,7 +61,7 @@ def tokenize_data(batch, **fn_kwargs):
         if unit == "char":
             labels = processor(batch["text"]).input_ids
         else:
-            raw_ids = processor(batch["phones"]).input_ids
+            raw_ids = processor(batch["phones"])
             labels = [x[0] for x in raw_ids]
         batch["labels"] = labels
 

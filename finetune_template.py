@@ -36,18 +36,19 @@ print(args)
 
 super_runner_config = SuperRunnerConfig(
     task="ASR",
-    model="model/test/checkpoint-1500",
+    model="facebook/wav2vec2-base",
     unit="phone",
-    lexicon="/export/b14/dgao/flexible_alignment/ntu/data/lexicon/nsc.txt",
+    lexicon="",
     output_dir="log",
-    eval_set_name="eval",
-    dataset="dataset/librispeech_toy",
-    trainer="trainer",
+    vocab="vocab.json",
+    eval_set_name="test",
+    dataset="dataset/timit",
+    trainer="nc",
     scale=args.scale,
 )
 
 training_args = TrainingArguments(
-    output_dir="model/test",
+    output_dir="model/timit",
     group_by_length=True,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=2,

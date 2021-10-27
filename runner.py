@@ -1,4 +1,5 @@
-# 2021 Dongji Gao
+# 2022 Dongji Gao
+
 
 import datasets
 import json
@@ -6,7 +7,13 @@ import lhotse
 import numpy as np
 import os
 from datasets import load_dataset, load_metric
-from mapping import get_chars, text_to_phones, tokenize_data, normalize_text
+from mapping import (
+    get_chars,
+    text_to_phones,
+    tokenize_data,
+    normalize_text,
+    speech_to_input,
+)
 from trainer import NCTrainer
 from transformers import (
     Wav2Vec2CTCTokenizer,
@@ -68,7 +75,6 @@ class SuperRunner():
 
         assert self.unit in ["char", "phone"]
         if self.unit == "phone":
-            assert os.path.exists(super_runner_config.lexicon)
             self.lexicon = super_runner_config.lexicon
 
         self.vocab = super_runner_config.vocab
@@ -89,6 +95,7 @@ class SuperRunner():
     # TODO: whether move this function to utils?
     def process_data(self, data, dataset, is_kaldi_format):
         hf_dataset = get_dataset_from_disk(data, dataset, is_kaldi_format)
+
         if self.eval_set_name not in hf_dataset:
             print(f"eval set {self.eval_set_name} not found, spliting dataset")
             hf_dataset = split_dataset_randomly(hf_dataset, self.eval_set_name, num_eval=500)
@@ -110,32 +117,34 @@ class SuperRunner():
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
         else:
-            hf_dataset = hf_dataset.map(normalize_text)
+            # hf_dataset = hf_dataset.map(normalize_text)
 
-            phone_list = list()
-            lexicon_dict = dict()
-            with open(self.lexicon, "r") as lex:
-                for line in lex.readlines():
-                    line_list = line.split()
-                    word = line_list[0]
-                    phones = line_list[1:]
-                    lexicon_dict[word] = phones
-                    phone_list += phones
+            if "phones" not in hf_dataset["train"][0]:
+                assert self.lexicon
 
-            vocab_list = list(set(phone_list))
-            vocab_dict = {v: k + 1 for k, v in enumerate(vocab_list)}
-            vocab_dict["<eps>"] = 0
-            vocab_dict["|"] = len(vocab_dict)
-            if "<UNK>" not in vocab_dict:
-                vocab_dict["<UNK>"] = len(vocab_dict)
+                phone_list = list()
+                lexicon_dict = dict()
+                with open(self.lexicon, "r") as lex:
+                    for line in lex.readlines():
+                        line_list = line.split()
+                        word = line_list[0]
+                        phones = line_list[1:]
+                        lexicon_dict[word] = phones
+                        phone_list += phones
+
+                vocab_list = list(set(phone_list))
+                vocab_dict = {v: k + 1 for k, v in enumerate(vocab_list)}
+                vocab_dict["<eps>"] = 0
+                vocab_dict["|"] = len(vocab_dict)
+                if "<UNK>" not in vocab_dict:
+                    vocab_dict["<UNK>"] = len(vocab_dict)
+
+                tp_dict = {"lexicon": lexicon_dict, "do_normalize": True}
+                hf_dataset = hf_dataset.map(text_to_phones, fn_kwargs=tp_dict)
 
             if not self.vocab:
                 with open('vocab.json', 'w') as vocab_file:
                     json.dump(vocab_dict, vocab_file)
-
-            if "phones" not in hf_dataset:
-                tp_dict = {"lexicon": lexicon_dict, "do_normalize": True}
-                hf_dataset = hf_dataset.map(text_to_phones, fn_kwargs=tp_dict)
 
         return hf_dataset
 
