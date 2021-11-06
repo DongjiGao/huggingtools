@@ -1,9 +1,9 @@
 # 2021 Dongji Gao
 
 import lhotse
+import numpy as np
 import random
 import torch
-import numpy as np
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datasets import Dataset, DatasetDict, load_from_disk, load_metric
@@ -19,15 +19,15 @@ def lhotse_to_huggingface(cuts, sampling_rate=16e3):
             id = segment["id"]
             spk_id = segment["speaker"]
             text = segment["text"]
-            duration = float(segment["segment"])
+            duration = float(segment["duration"])
 
             start_frame = int(sampling_rate * float(segment["start"]))
             end_frame = start_frame + int(sampling_rate * duration)
             speech = audio[0][start_frame:end_frame + 1]
 
-            for item in [id, spk_id, text, duration, speech]:
-                dataset_dict[f"{item}"].append(item)
-
+            if not contain_chinese(text) and duration > 0.2:
+                for item in [("id", id), ("text", text), ("duration", duration), ("speech", speech)]:
+                    dataset_dict[item[0]].append(item[1])
     hf_dataset = Dataset.from_dict(dataset_dict)
 
     return hf_dataset
@@ -49,7 +49,7 @@ def get_dataset_from_disk(data, dataset, is_kaldi_format, sampling_rate=16e3):
 
 
 # TODO: split by duration?
-def split_dataset_randomly(dataset, eval_name, num_eval=100):
+def split_dataset_randomly(dataset, eval_name="eval", num_eval=100):
     hf_dataset = DatasetDict()
     dataset_length = len(dataset)
     assert num_eval <= dataset_length
@@ -71,6 +71,7 @@ def split_dataset_randomly(dataset, eval_name, num_eval=100):
     hf_dataset[eval_name] = Dataset.from_dict(dataset[eval_indexes])
 
     return hf_dataset
+
 
 def get_subset_by_duration(dataset, duration=3600):
     # be careful about duration
@@ -99,6 +100,7 @@ def get_subset_by_duration(dataset, duration=3600):
     sub_dataset = datasets.Dataset.from_dict(dataset[pick_list])
 
     return sub_dataset
+
 
 @dataclass
 class DataCollatorCTCWithPadding:
@@ -136,5 +138,8 @@ class DataCollatorCTCWithPadding:
         batch["labels"] = labels
         return batch
 
-
-
+def contain_chinese(check_str):
+    for ch in check_str:
+        if ord(ch) > 255:
+            return True
+    return False

@@ -1,4 +1,4 @@
-# 2022 Dongji Gao
+# 2023 Dongji Gao
 
 
 import datasets
@@ -6,12 +6,12 @@ import json
 import lhotse
 import numpy as np
 import os
+import random
 from datasets import load_dataset, load_metric
 from mapping import (
     get_chars,
     text_to_phones,
     tokenize_data,
-    normalize_text,
     speech_to_input,
 )
 from trainer import NCTrainer
@@ -99,6 +99,7 @@ class SuperRunner():
         if self.eval_set_name not in hf_dataset:
             print(f"eval set {self.eval_set_name} not found, spliting dataset")
             hf_dataset = split_dataset_randomly(hf_dataset, self.eval_set_name, num_eval=500)
+
             hf_dataset.save_to_disk(dataset)
 
         if self.unit == "char":
@@ -166,8 +167,7 @@ class SuperRunner():
                                       tokenizer=tokenizer)
         tk_dict = {"processor": processor, "unit": self.unit, "sampling_rate": self.sampling_rate}
         hf_tokened_dataset = hf_dataset.map(tokenize_data,
-                                            fn_kwargs=tk_dict,
-                                            )
+                                            fn_kwargs=tk_dict)
         # padding
         data_collator = DataCollatorCTCWithPadding(processor=processor, padding=True)
 
@@ -189,8 +189,9 @@ class SuperRunner():
             pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
             pred_str = processor.batch_decode(pred_ids)
             label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
-            print("hyp: {}".format(pred_str[0]))
-            print("ref: {}".format(label_str[0]))
+            index = random.randint(0, len(pred_str) - 1)
+            print("hyp: {}".format(pred_str[index]))
+            print("ref: {}".format(label_str[index]))
             wer = wer_metric.compute(predictions=pred_str, references=label_str)
 
             return {"wer": wer}
@@ -209,4 +210,4 @@ class SuperRunner():
         if self.trainer == "nc":
             trainer.set_scale(self.scale)
 
-        trainer.train(resume_from_checkpoint=False)
+        trainer.train(resume_from_checkpoint=True)

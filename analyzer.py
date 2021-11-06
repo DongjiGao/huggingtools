@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-import torch
-from torch.linalg import lstsq
-from datasets import load_dataset, load_from_disk
-
-
 # 2021 Dongji Gao
+
+import matplotlib.pyplot as plt
+import torch
+from datasets import load_dataset, load_from_disk
+from torch.linalg import lstsq
+import numpy as np
+
 
 class AnalyzerBase():
     def __init__(self, model_name, model_type, dataset):
@@ -36,8 +38,13 @@ class LMAnalyzer(AnalyzerBase):
     def __init__(self, model_name, model_type, dataset):
         super().__init__(model_name, model_type, dataset)
 
-    def get_weight(self, model):
-        return model.get_output_embeddings().weight
+    def get_weights(self):
+        weights_dict = dict()
+        weights = self.model.get_output_embeddings().weight
+        num_ids, weight_size = weights.shape
+        for id in range(num_ids):
+            weights_dict[id] = weights[id]
+        self.weights_dict = weights_dict
 
     def infer(self):
         model = self.model
@@ -73,10 +80,15 @@ class LMAnalyzer(AnalyzerBase):
         features = torch.cat(features_list)
         ref_ids = torch.cat(ref_ids_list)
 
-        return hyp_ids, features, ref_ids
+        self.hyp_ids = hyp_ids
+        self.features = features
+        self.ref_ids = ref_ids
 
     def compute_nc1(self):
-        hyp_ids, features, ref_ids = self.infer()
+        hyp_ids = self.hyp_ids
+        features = self.features
+        ref_ids = self.ref_ids
+
         features_dict = dict()
         features_mean_dict = dict()
 
@@ -84,6 +96,7 @@ class LMAnalyzer(AnalyzerBase):
         global_mean = torch.mean(features, dim=0)
 
         for id in hyp_ids:
+            id = id.item()
             if id not in features_dict:
                 features_dict[id] = features[hyp_ids == id]
         for id in features_dict:
@@ -105,7 +118,77 @@ class LMAnalyzer(AnalyzerBase):
                 cur_corvariance = torch.matmul(tmp_vector, tmp_vector.T)
                 covariance_w += cur_corvariance
         covariance_w /= num_features
-
         nc_1 = torch.trace(lstsq(covariance_b, covariance_w).solution) / num_classes
 
+        self.features_mean_dict = features_mean_dict
         print(nc_1)
+        return nc_1
+
+    def plot_angle(self):
+        Cos = torch.nn.CosineSimilarity()
+        weights_dict = self.weights_dict
+        features_mean_dict = self.features_mean_dict
+        hyp_ids = self.hyp_ids
+
+        features_angle_list = list()
+        weights_angle_list = list()
+        features_product_list = list()
+        weights_product_list = list()
+        number_list = list()
+        ids_list = list()
+
+        id_number_dict = dict()
+
+        for id in features_mean_dict:
+            id_number_dict[id] = torch.sum(hyp_ids == id).item()
+            ids_list.append(id)
+
+
+        for i in range(len(ids_list)):
+            id_1 = ids_list[i]
+            for j in range(i + 1, len(ids_list)):
+                id_2 = ids_list[j]
+                features_angle = Cos(features_mean_dict[id_1].unsqueeze(dim=0),
+                                     features_mean_dict[id_2].unsqueeze(dim=0))
+                features_product = torch.matmul(features_mean_dict[id_1].unsqueeze(dim=0),
+                                                features_mean_dict[id_2].unsqueeze(dim=0).T)
+                weights_angle = Cos(weights_dict[id_1].unsqueeze(dim=0),
+                                    weights_dict[id_2].unsqueeze(dim=0))
+                weights_product = torch.matmul(weights_dict[id_1].unsqueeze(dim=0),
+                                               weights_dict[id_2].unsqueeze(dim=0).T)
+                number = id_number_dict[id_1] + id_number_dict[id_2]
+
+                features_angle_list.append(features_angle.item())
+                weights_angle_list.append(weights_angle.item())
+                features_product_list.append(features_product.item())
+                weights_product_list.append(weights_product.item())
+                number_list.append(number)
+
+        features_angle = np.array(features_angle_list)
+        weights_angle = np.array(weights_angle_list)
+        features_product = np.array(features_product_list)
+        weights_product = np.array(weights_product_list)
+        numbers = np.array(number_list)
+        fig, ax = plt.subplots()
+        ax.scatter(features_product, weights_product, s=numbers/100)
+        lims = [
+            np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
+            np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
+        ]
+        ax.grid()
+        plt.savefig("nc_1_product.png")
+
+    def tmp_variance(self):
+        weight = self.model.get_output_embeddings().weight
+        num_ids, weight_dize = weight.shape
+        mean = torch.mean(weight, dim=0)
+        var = torch.var(weight, dim=0)
+
+        ratio = var / torch.square(mean)
+        mean_sorted, index = torch.sort(mean)
+        var_sorted = var[index]
+        ratio[torch.argmax(ratio)] = 0
+
+        plt.plot(ratio.detach().numpy())
+        plt.savefig("ratio.png")
+
